@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>Playback.qml</file>
+        <file>Map.qml</file>
+        <file>FileBrowser.qml</file>
+        <file>GUI/assets/icon_Folder.png</file>
+        <file>GUI/assets/icon_BackArrow.png</file>
+    </qresource>
+</RCC>
