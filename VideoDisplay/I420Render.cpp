@@ -56,15 +56,10 @@ I420Render::I420Render()
     idV = ids[2];
 }
 
-void I420Render::render(uchar *dataPtr, int w, int h, int renderW, int renderH)
+void I420Render::render(uchar *dataPtr, int w, int h, QRect drawPosition)
 {
-    int vX,vY,vW,vH;
-    bool horizontal = (float)renderW / (float)renderH < (float)w / (float)h;
-    vW = horizontal ? renderW : w * renderH / h;
-    vH = h * vW / w;
-    vX = horizontal ? 0: renderW / 2 - vW / 2;
-    vY = horizontal ? renderH / 2 - vH / 2: 0;
-    glViewport(vX,vY,vW,vH);
+    glViewport(drawPosition.x(),drawPosition.y(),
+               drawPosition.width(),drawPosition.height());
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
@@ -114,6 +109,5 @@ void I420Render::render(uchar *dataPtr, int w, int h, int renderW, int renderH)
     program.disableAttributeArray("vertexIn");
     program.disableAttributeArray("textureIn");
     program.release();
-
 }
 

@@ -10,6 +10,7 @@
 #include <QOpenGLFramebufferObjectFormat>
 #include <QOpenGLBuffer>
 #include <QVector>
+#include <QRect>
 #include <QPainter>
 #include <QPaintEngine>
 #include <QOpenGLTexture>
@@ -19,7 +20,7 @@ class I420Render : public QOpenGLFunctions
 {
 public:
     I420Render();
-    void render(uchar*i420ptr, int w, int h, int renderW, int renderH);
+    void render(uchar*i420ptr, int w, int h, QRect drawPosition);
 
 private:
     QImage m_image;

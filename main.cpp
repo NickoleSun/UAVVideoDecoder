@@ -6,8 +6,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    qmlRegisterType<VideoRender>("viettel.dev", 1, 0, "VideoRender");
-    qmlRegisterType<VideoEngine>("viettel.dev", 1, 0, "VideoEngine");
+    VideoEngine::expose();
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
     if (engine.rootObjects().isEmpty())
         return -1;

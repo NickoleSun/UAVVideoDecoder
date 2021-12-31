@@ -63,7 +63,11 @@ SOURCES += \
     VideoDisplay/VideoRender.cpp \
     VideoEngine.cpp \
     Decoder/FFMpeg/FFMPEGDecoder.cpp \
-    Decoder/MC/MCDecoder.cpp
+    Decoder/MC/MCDecoder.cpp \
+    Algorithm/AP_Math/Matrix3.cpp \
+    Algorithm/AP_Math/Vector3.cpp \
+    Algorithm/AP_TargetLocalization/TargetLocalization.cpp \
+    Algorithm/Elevation.cpp
 
 HEADERS += \
     Decoder/Gstreamer/GSTStreamDecoder.h \
@@ -72,4 +76,11 @@ HEADERS += \
     VideoDisplay/VideoRender.h \
     VideoEngine.h \
     Decoder/FFMpeg/FFMPEGDecoder.h \
-    Decoder/MC/MCDecoder.h
+    Decoder/MC/MCDecoder.h \
+    Algorithm/AP_Math/AP_Math.h \
+    Algorithm/AP_Math/Matrix3.h \
+    Algorithm/AP_Math/Numbers.h \
+    Algorithm/AP_Math/rotations.h \
+    Algorithm/AP_Math/Vector3.h \
+    Algorithm/AP_TargetLocalization/TargetLocalization.h \
+    Algorithm/Elevation.h

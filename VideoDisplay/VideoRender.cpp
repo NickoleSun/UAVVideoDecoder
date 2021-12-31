@@ -15,13 +15,13 @@ public:
         m_i420Ptr = dynamic_cast<VideoRender*>(item)->m_data;
         m_videoH = dynamic_cast<VideoRender*>(item)->m_height;
         m_videoW = dynamic_cast<VideoRender*>(item)->m_width;
-        m_renderW = static_cast<int>(item->width());
-        m_renderH = static_cast<int>(item->height());
+        m_drawPosition = dynamic_cast<VideoRender*>(item)->m_drawPosition;
     }
 
     void render() override{
         if(m_i420Ptr == nullptr || m_videoH == 0 || m_videoW == 0) return;
-        m_render.render(m_i420Ptr, m_videoW,m_videoH,m_renderW,m_renderH);
+
+        m_render.render(m_i420Ptr, m_videoW,m_videoH,m_drawPosition);
     }
 
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override {
@@ -36,8 +36,7 @@ private:
     unsigned char *m_i420Ptr = nullptr;
     int m_videoW = 0;
     int m_videoH = 0;
-    int m_renderW = 0;
-    int m_renderH = 0;
+    QRect m_drawPosition;
 };
 
 VideoRender::VideoRender(QQuickItem *parent) : QQuickFramebufferObject(parent)
@@ -55,11 +54,24 @@ QQuickFramebufferObject::Renderer *VideoRender::createRenderer() const
     return new VideoFboRender();
 }
 
-void VideoRender::handleNewFrame(unsigned char *_img, const int &_w, const int &_h)
+void VideoRender::handleNewFrame(unsigned char *t_img, const int &t_w, const int &t_h)
 {
-    this->m_data = _img;
-    this->m_width = _w;
-    this->m_height = _h;
+    this->m_data = t_img;
+    this->m_width = t_w;
+    this->m_height = t_h;
+    int renderW = static_cast<int>(this->width());
+    int renderH = static_cast<int>(this->height());
+    int w = t_w;
+    int h = t_h;
+    int vX,vY,vW,vH;
+    bool horizontal = static_cast<float>(renderW) / static_cast<float>(renderH) <
+            static_cast<float>(w) / static_cast<float>(h);
+    vW = horizontal ? renderW : w * renderH / h;
+    vH = h * vW / w;
+    vX = horizontal ? 0: renderW / 2 - vW / 2;
+    vY = horizontal ? renderH / 2 - vH / 2: 0;
+    this->m_drawPosition = QRect(vX,vY,vW,vH);
     this->update();
+    Q_EMIT drawPositionChanged();
 }
 
