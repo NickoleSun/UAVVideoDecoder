@@ -1,21 +1,22 @@
-#include "GSTStreamDecoder.h"
+#include "GStreamDecoder.h"
 
-GSTStreamDecoder::GSTStreamDecoder(DecoderInterface *parent) : DecoderInterface(parent)
+GStreamDecoder::GStreamDecoder(DecoderInterface *parent) : DecoderInterface(parent)
 {
+    m_type = "GStreamer";
     gst_init(nullptr,nullptr);
 }
-GSTStreamDecoder::~GSTStreamDecoder(){
+GStreamDecoder::~GStreamDecoder(){
     stop();
-    printf("Delete GSTStreamDecoder\r\n");
+    printf("Delete GStreamDecoder\r\n");
 }
 
-GstFlowReturn GSTStreamDecoder::wrap_read_frame_buffer(GstAppSink *sink, gpointer user_data) {
-    GSTStreamDecoder * itself = (GSTStreamDecoder*)user_data;
+GstFlowReturn GStreamDecoder::wrap_read_frame_buffer(GstAppSink *sink, gpointer user_data) {
+    GStreamDecoder * itself = (GStreamDecoder*)user_data;
     itself->read_frame_buffer(sink,NULL);
     return GST_FLOW_OK;
 }
 
-GstFlowReturn GSTStreamDecoder::read_frame_buffer(GstAppSink* sink, gpointer user_data) {
+GstFlowReturn GStreamDecoder::read_frame_buffer(GstAppSink* sink, gpointer user_data) {
     GstSample *sample = gst_app_sink_pull_sample(sink);
 
     if (sample == nullptr) {
@@ -60,13 +61,15 @@ GstFlowReturn GSTStreamDecoder::read_frame_buffer(GstAppSink* sink, gpointer use
         gst_buffer_map(m_buf, &m_map, GST_MAP_READ);
 //        printf("frameDecoded[%dx%d] [%d]\r\n",width,height,m_map.size);
         memcpy(m_data,m_map.data,m_map.size);
+        m_width = width;
+        m_height = height;
         Q_EMIT frameDecoded(m_data,width,height,m_buf->dts);
         gst_sample_unref(sample);
     }
     return GST_FLOW_OK;
 }
 
-gboolean GSTStreamDecoder::gstreamer_pipeline_operate() {
+gboolean GStreamDecoder::gstreamer_pipeline_operate() {
     m_loop = g_main_loop_new(NULL, FALSE);
     // launch pipeline
     std::ostringstream ss;
@@ -112,7 +115,7 @@ gboolean GSTStreamDecoder::gstreamer_pipeline_operate() {
 
     return TRUE;
 }
-void GSTStreamDecoder::setVideo(QString source){
+void GStreamDecoder::setVideo(QString source){
     m_source = source + " ! appsink name=mysink sync="+ (source.contains("filesrc")?"true":"false");
     printf("pipeline: %s\r\n",m_source.toStdString().c_str());
     if(m_pipeline != NULL){
@@ -152,17 +155,17 @@ void GSTStreamDecoder::setVideo(QString source){
 
     }
 }
-void GSTStreamDecoder::setStateRun(bool running) {
+void GStreamDecoder::setStateRun(bool running) {
     if(m_loop != NULL &&  g_main_loop_is_running(m_loop) == TRUE){
 //            printf("Set video capture state to null\r\n");
         g_main_loop_quit(m_loop);
     }
 }
 
-void GSTStreamDecoder::run() {
+void GStreamDecoder::run() {
     while(!m_stop)
     {
-        if(GSTStreamDecoder::gstreamer_pipeline_operate()) {
+        if(GStreamDecoder::gstreamer_pipeline_operate()) {
             g_print("Pipeline running successfully . . .\n");
         }else {
             g_print("Running Error!");
@@ -170,7 +173,7 @@ void GSTStreamDecoder::run() {
     }
 }
 
-void GSTStreamDecoder::pause(bool pause){
+void GStreamDecoder::pause(bool pause){
     if(m_pipeline == NULL) return;
     if(pause){
         gst_element_set_state(GST_ELEMENT(m_pipeline), GST_STATE_PAUSED);
@@ -179,7 +182,7 @@ void GSTStreamDecoder::pause(bool pause){
     }
 }
 
-void GSTStreamDecoder::stop(){
+void GStreamDecoder::stop(){
     printf("Stopping capture thread\r\n");
     setStateRun(false);
     gst_element_set_state(GST_ELEMENT(m_pipeline), GST_STATE_NULL);

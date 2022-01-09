@@ -303,6 +303,11 @@ Map {
         root.center = plane.coordinate;
     }
 
+    function centerTarget()
+    {
+        root.center = los.path[1];
+    }
+
     function createMeasureline(coord1, coord2, color){
         if(color === undefined)
             color = measurelineColor
@@ -389,6 +394,26 @@ Map {
             measureLine[3].rotation = textRotation
             measureLine[3].text = qsTr(azimuth.toFixed(1) + "° " + distance.toFixed(0) + "m")
             measureLine[3].coordinate = coordCenter
+        }
+    }
+
+    function removeLastMeasureLine(){
+        if(listMeasureLine.length > 0){
+            var lastMeasureLine = listMeasureLine.pop();
+            if(lastMeasureLine !== undefined){
+                for(var i = 0 ; i < 4 ; i ++){
+                    lastMeasureLine[i].destroy()//delete all element
+                }
+            }
+        }
+    }
+
+    function removeAllMeasureLines()
+    {
+        var numMeasureLine = listMeasureLine.length;
+        for(var i=0;i<numMeasureLine;i++)
+        {
+            removeLastMeasureLine();
         }
     }
 }

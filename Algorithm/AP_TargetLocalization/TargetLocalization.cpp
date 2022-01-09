@@ -29,12 +29,6 @@ AppService::TargetLocalization::~TargetLocalization()
 	//dtor
 }
 
-void AppService::TargetLocalization::setSensorParams(float sx, float sy)
-{
-    printf("setSensorParams %f,%f\r\n",sx,sy);
-    visionViewInit(sx,sy,1920,1080);
-}
-
 void AppService::TargetLocalization::visionViewInit(float pixel_sizeX, float pixel_sizeY, int image_col_pixel, int image_row_pixel)
 {
 	initializedVisionView = 1;
@@ -149,11 +143,11 @@ void AppService::TargetLocalization::targetLocationCompute(
     dTrack = atan2(y, x);
     dElevator = atan2(-z, dDistance);
 
-    //terrainElevationCorrection(curUavData, dTrack, dDistance);
+    terrainElevationCorrection(curUavData, dTrack, dDistance);
 	// calculate the position of target
     movePositionFlatEarth(curUavData->UavPosition, dTrack, dDistance, targetPoint);
 
-    //targetPoint.terrainElevation = m_elevationFinder.getElevation(targetPoint.Latitude, targetPoint.Longitude);
+    targetPoint.terrainElevation = m_elevationFinder.getElevation(targetPoint.Latitude, targetPoint.Longitude);
 }
 
 /*
@@ -197,8 +191,8 @@ void AppService::TargetLocalization::targetLocationMain(int x_ip, int y_ip, floa
 
     UavDataState.UavPosition.Latitude	= uav_lat_deg;
     UavDataState.UavPosition.Longitude	= uav_lon_deg;
-//    UavDataState.UavPosition.terrainElevation = m_elevationFinder.getElevation(uav_lat_deg, uav_lon_deg);
-    UavDataState.UavPosition.Altitude	= uav_alt_m;// -  UavDataState.UavPosition.terrainElevation;
+    UavDataState.UavPosition.terrainElevation = m_elevationFinder.getElevation(uav_lat_deg, uav_lon_deg);
+    UavDataState.UavPosition.Altitude	= uav_alt_m -  UavDataState.UavPosition.terrainElevation;
 
 
 	UavDataState.UavPosition._latitude	= (int)(uav_lat_deg * scaleFactorD);

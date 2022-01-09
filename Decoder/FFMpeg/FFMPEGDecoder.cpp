@@ -1,7 +1,9 @@
 #include "FFMPEGDecoder.h"
 #include <QGeoCoordinate>
+
 FFMPEGDecoder::FFMPEGDecoder(DecoderInterface *parent) : DecoderInterface(parent)
 {
+    m_type = "FFMpeg";
     // initialize FFmpeg library
     av_register_all();
     avformat_network_init();
@@ -83,7 +85,9 @@ bool FFMPEGDecoder::openSource(QString videoSource)
     printf("fps:    %f\r\n"     ,m_fps);
     printf("pixfmt: %s\r\n"     ,av_get_pix_fmt_name(m_videoStream->codec->pix_fmt));
 #endif
-
+    m_width = m_videoStream->codec->width;
+    m_height = m_videoStream->codec->height;
+    setSensorParams(m_sx,m_sy);
     Q_EMIT videoInformationChanged(information);
     return true;
 }
@@ -130,12 +134,17 @@ void FFMPEGDecoder::run(){
                 int currentTimeMS = static_cast<int>(static_cast<double>(currentTS) * timeBase * 1000);
                 if(currentTimeMS > 0)
                 {
-                    m_currentTimeMS = currentTimeMS;
+                    m_currentTimeMS = currentTimeMS;                    
 //                    printf("timeBase[%f] currentTS[%ld] pkt.pts[%ld] pkt.dts[%ld] pkt.duration[%d]\r\n",
 //                           timeBase,currentTS,pkt.pts,pkt.dts,pkt.duration);
                 }
+#ifdef DEBUG
+                printf("FFMpegDecoder\r\n");
+#endif
                 int width = decframe->linesize[0];
                 int height = decframe->height;
+                m_width = width;
+                m_height = height;
                 memcpy(m_data,decframe->data[0],static_cast<size_t>(width*height));
                 memcpy(m_data+width*height,decframe->data[1],static_cast<size_t>(width*height/4));
                 memcpy(m_data+width*height*5/4,decframe->data[2],static_cast<size_t>(width*height/4));
@@ -146,8 +155,8 @@ void FFMPEGDecoder::run(){
 //            printf("A");
         }else if(pkt.stream_index == m_metaStreamIndex){
 //            printf("M");
-            QVariantMap meta = decodeMeta(pkt.data,pkt.size);
-            Q_EMIT metaDecoded(meta);
+            decodeMeta(pkt.data,pkt.size);
+            Q_EMIT metaDecoded(m_metaProcessed);
         }
         av_free_packet(&pkt);
     }
@@ -193,12 +202,405 @@ void FFMPEGDecoder::stop(){
     pause(false);
 }
 
-QVariantMap FFMPEGDecoder::decodeMeta(unsigned char* data, int length)
+void FFMPEGDecoder::decodeMeta(unsigned char* data, int size)
 {
-    QVariantMap res;
-    res["coordinate"] = QVariant::fromValue(QGeoCoordinate(21.0388022,105.4892664));
-    res["yaw"] = QVariant::fromValue(40);
-    res["targetCoordinate"] = QVariant::fromValue(QGeoCoordinate(21.0361586,105.4961328));
-    res["centerCoordinate"] = QVariant::fromValue(QGeoCoordinate(21.0353575,105.4941587));
-    return res;
+    QVariantMap metaData;
+    metaData["TargetPx"] = QVariant::fromValue(m_width/2);
+    metaData["TargetPy"] = QVariant::fromValue(m_height/2);
+    unsigned char numBytesForLength = data[16] & 0x0F;
+    int startIndex = 17 + static_cast<int>(numBytesForLength);
+    while(startIndex < size){
+        uint8_t key = data[startIndex];
+        uint8_t length = data[startIndex+1];
+        if(length+startIndex+1>= size)
+            break;
+        std::vector<uint8_t> value(data+startIndex+2,
+                                   data+startIndex+2+length);
+        startIndex += length+2;
+        Klv klv(key,length,value);
+        switch (klv.m_key) {
+        case 0x02:
+            if(klv.m_length >=8){
+                uint64_t timestamp =  0;
+                const uint16_t dummy = 1;
+                const bool is_little_endian = *(const uint8_t*)&dummy == 1;
+                for(size_t i=0; i<8; i++)
+                {
+                    size_t shift = i*8;
+
+                    if(is_little_endian)
+                    {
+                        shift = 64-8-shift;
+                    }
+
+                    timestamp |= (uint64_t)klv.m_value[i] << shift;
+                }
+                time_t    sec = timestamp / 1000000;
+                uint64_t      usec = timestamp % 1000000;
+                struct tm tm;
+                gmtime_r(&sec, &tm);
+                char tstr[30];
+                int len = strftime(tstr, sizeof(tstr), "%Y/%m/%d %H:%M:%S", &tm);
+                sprintf(tstr + len, ".%03ld ", usec / 1000);
+    #ifdef DEBUG
+                printf("UNIX Time stamp L[%d]: [%ld] = %s\r\n",
+                       klv.m_length,timestamp,
+                       tstr);
+    #endif
+
+            }else{
+                #ifdef DEBUG
+                printf("Wrong UNIX TimeStamp\r\n");
+    #endif
+            }
+            break;
+        case 0x03:
+            #ifdef DEBUG
+            printf("Mission ID: ");
+            for(int i=0; i< klv.m_value.size(); i++){
+                printf("%c",klv.m_value[i]);
+            }
+            printf("\r\n");
+    #endif
+            break;
+        case 0x04:
+            #ifdef DEBUG
+            printf("Platform Tail Number: ");
+            for(int i=0; i< klv.m_value.size(); i++){
+                printf("%c",klv.m_value[i]);
+            }
+            printf("\r\n");
+    #endif
+
+            break;
+        case 0x05:
+        {
+            if(klv.m_value.size() >=2){
+                uint16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65536-1)*360;
+                metaData["UavYaw"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Platform Heading Angle: %f\r\n",valueFloat);
+    #endif
+
+            }
+
+        }
+            break;
+        case 0x06:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                //            int valueInt = 0xFD*256 + 0x3D;
+                float valueFloat = static_cast<float>(valueInt)/(65534)*40;
+                metaData["UavPitch"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Platform Pitch Angle: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x07:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                //            int valueInt = 0x08*256 + 0xB8;
+                float valueFloat = static_cast<float>(valueInt)/(65534)*100;
+                metaData["UavRoll"] = QVariant::fromValue(valueFloat);
+    #ifdef DEBUG
+                printf("Platform Roll Angle: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x0A:
+            #ifdef DEBUG
+            printf("Platform Designation: ");
+            for(int i=0; i< klv.m_value.size(); i++){
+                printf("%c",klv.m_value[i]);
+            }
+            printf("\r\n");
+    #endif
+
+            break;
+        case 0x0D:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*180;
+                metaData["UavLatitude"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Latitude: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x0E:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*360;
+                metaData["UavLongitude"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Longitude: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x0F:
+        {
+            if(klv.m_value.size() >=2){
+                int valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65535)*19900-900;
+                metaData["UavAMSL"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Altitude: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x10:
+        {
+            if(klv.m_value.size() >=2){
+                int valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65535)*180;
+                metaData["Hfov"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor HFOV: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x11:
+        {
+            if(klv.m_value.size() >=2){
+                int valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65535)*180;
+                metaData["Vfov"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor VFOV: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x12:
+        {
+            if(klv.m_value.size() >=4){
+                uint32_t valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*360;
+                if(valueFloat<0){
+                    valueFloat+=360;
+                }
+                metaData["GimbalPan"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Relative Azimuth: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x13:
+        {
+            if(klv.m_value.size() >=4){
+                int32_t valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*360;
+                metaData["GimbalTilt"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Relative Elevation: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x14:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967295)*360;
+                metaData["GimbalRoll"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Sensor Relative Roll: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x15:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967295)*5000000;
+                metaData["TargetSLR"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("SlantRanged: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x17:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*180;
+                metaData["CenterLat"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Frame center Latitude: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x18:
+        {
+            if(klv.m_value.size() >=4){
+                int valueInt = klv.m_value[0]*256*256*256 + klv.m_value[1]*256*256 +
+                        klv.m_value[2]*256 + klv.m_value[3];
+                float valueFloat = static_cast<float>(valueInt)/(4294967294)*360;
+                metaData["CenterLon"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Frame center Longitude: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x19:
+        {
+            if(klv.m_value.size() >=2){
+                int valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65535)*19900-900;
+                metaData["CenterAMSL"] = QVariant::fromValue(valueFloat);
+                #ifdef DEBUG
+                printf("Frame center Elevation: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1A:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner01Lat"] = QVariant::fromValue(valueFloat + metaData["CenterLat"].toFloat());
+    #ifdef DEBUG
+                printf("Offset corner Latitude Point1: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1B:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner01Lon"] = QVariant::fromValue(valueFloat + metaData["CenterLon"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Longitude Point1: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1C:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner02Lat"] = QVariant::fromValue(valueFloat + metaData["CenterLat"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Latitude Point2: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1D:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner02Lon"] = QVariant::fromValue(valueFloat + metaData["CenterLon"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Longitude Point2: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1E:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner03Lat"] = QVariant::fromValue(valueFloat + metaData["CenterLat"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Latitude Point3: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x1F:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner03Lon"] = QVariant::fromValue(valueFloat + metaData["CenterLon"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Longitude Point3: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x20:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner04Lat"] = QVariant::fromValue(valueFloat + metaData["CenterLat"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Latitude Point4: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+        case 0x21:
+        {
+            if(klv.m_value.size() >=2){
+                int16_t valueInt = klv.m_value[0]*256 + klv.m_value[1];
+                float valueFloat = static_cast<float>(valueInt)/(65534)*0.15f;
+                metaData["Corner04Lon"] = QVariant::fromValue(valueFloat + metaData["CenterLon"].toFloat());
+                #ifdef DEBUG
+                printf("Offset corner Longitude Point4: %f\r\n",valueFloat);
+    #endif
+
+            }
+        }
+            break;
+
+        default:
+            break;
+        }
+    }
+    updateMeta(metaData);
 }
+

@@ -1,48 +1,64 @@
 #include "VideoEngine.h"
-#include "Decoder/Gstreamer/GSTStreamDecoder.h"
+#include "Decoder/Gstreamer/GStreamDecoder.h"
 #include "Decoder/FFMpeg/FFMPEGDecoder.h"
 #include "Decoder/MC/MCDecoder.h"
 #include <unistd.h>
 VideoEngine::VideoEngine(QObject *parent) : QObject(parent)
 {
-    m_decoder = new MCDecoder;
-    connect(m_decoder,&DecoderInterface::frameDecoded,
-            this,&VideoEngine::renderFrame);
-    connect(m_decoder,&DecoderInterface::videoInformationChanged,
-            this,&VideoEngine::videoInformationChanged);    
-    connect(m_decoder,&DecoderInterface::metaDecoded,
-            this,&VideoEngine::metadataFound);
-    connect(m_decoder,&DecoderInterface::locationComputed,
-            this,&VideoEngine::handleLocationComputed);
-    m_decoder->setOffset(0,-4.5,0);
+    m_decoderList.append(new FFMPEGDecoder);
+    m_decoderList.append(new MCDecoder);
+    m_decoderList.append(new GStreamDecoder);
+    Q_EMIT decoderListChanged();
+    changeDecoder(m_decoderList[0]->decodeType());
 }
 VideoEngine::~VideoEngine()
 {
-    m_decoder->stop();
-    while(m_decoder->isRunning())
+    if(m_decoder != nullptr)
     {
-        printf(".");
-        sleep(1);
-        fflush(stdout);
-    }
+        m_decoder->stop();
+        while(m_decoder->isRunning())
+        {
+            printf("%s\r\n",m_decoder->decodeType().toStdString().c_str());
+            m_decoder->stop();
+            sleep(1);
+            fflush(stdout);
+        }
 
-    printf("Kill Decoder\r\n");
-    m_decoder->quit();
-    delete m_decoder;
+        printf("Kill Decoder\r\n");
+        m_decoder->quit();
+        delete m_decoder;
+    }
 }
 
 void VideoEngine::changeDecoder(QString decoderName)
 {
-    if(m_decoderType != decoderName)
+    QString currentSource = "";
+    if(m_decoder != nullptr)
     {
-        m_decoderType = decoderName;
-        if(m_decoderType == "FFMPEG")
+        currentSource = m_decoder->source();
+        if(m_decoder->isRunning())
+            m_decoder->pause(true);
+    }
+    for(int i=0; i< m_decoderList.size(); i++)
+    {
+        if(m_decoderList[i]->decodeType() == decoderName)
         {
-            m_decoder = new FFMPEGDecoder;
-        }
-        else if(m_decoderType == "GSTREAMER")
-        {
-            m_decoder = new GSTStreamDecoder;
+            m_decoder = m_decoderList[i];
+            connect(m_decoder,&DecoderInterface::frameDecoded,
+                    this,&VideoEngine::renderFrame);
+            connect(m_decoder,&DecoderInterface::videoInformationChanged,
+                    this,&VideoEngine::videoInformationChanged);
+            connect(m_decoder,&DecoderInterface::metaDecoded,
+                    this,&VideoEngine::metadataFound);
+            connect(m_decoder,&DecoderInterface::locationComputed,
+                    this,&VideoEngine::handleLocationComputed);
+            if(decoderName.contains("MC"))
+                m_decoder->setOffset(0,-4.5f,0);
+            else
+                m_decoder->setOffset(0.0f,0.0f,0.0f);
+
+            if(currentSource != "") setVideo(currentSource);
+            break;
         }
     }
 }
@@ -52,7 +68,7 @@ void VideoEngine::setVideo(QString video)
     if(m_decoder != nullptr)
     {
         m_decoder->setVideo(video);
-        m_decoder->start();
+        m_decoder->startService();
     }
 }
 

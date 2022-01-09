@@ -13,7 +13,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 #include "../DecoderInterface.h"
-#include "Algorithm/AP_TargetLocalization/TargetLocalization.h"
 
 class MCDecoder : public DecoderInterface
 {
@@ -28,16 +27,12 @@ public:
     void setSpeed(float speed) override;
     void pause(bool pause) override;
     void goToPosition(float percent) override;
-    void setSensorParams(float sx, float sy) override;
-    void computeTargetLocation(float xRatio, float yRatio) override;
     bool openSource(QString videoSource);
     int decodeFrameID(unsigned char* frameData, int width, int height);
 
     void decodeMeta();
     void findMeta(int metaID);
-    void updateMeta(QVariantMap metaData);
 
-    void computeGeolocation();
 Q_SIGNALS:
 
 public Q_SLOTS:
@@ -69,19 +64,9 @@ private:
     std::condition_variable m_waitMetaFoundCond;
     bool m_metaFound = false;
 
-    QVariantMap m_meta;
-    QVariantMap m_metaProcessed;
     int m_frameId = -1;
     int m_metaId = -1;
-
-    //Geo-location
-    AppService::TargetLocalization  m_geolocation;
-    AppService::TargetLocalization  m_geolocationSingle;
-    bool                            m_computeTargetSet = false;
-    float                           m_xRatio = 0.5f;
-    float                           m_yRatio = 0.5f;
-    std::mutex m_computeTargetMutex;
-    std::condition_variable m_waitComputeTargetCond;
+    int m_lineCount = 0;
 };
 
 #endif // MCDECODER_H

@@ -57,7 +57,7 @@ LIBS += -L/usr/local/lib -lzint -lzbar
 
 SOURCES += \
         main.cpp \
-    Decoder/Gstreamer/GSTStreamDecoder.cpp \
+    Decoder/Gstreamer/GStreamDecoder.cpp \
     Decoder/DecoderInterface.cpp \
     VideoDisplay/I420Render.cpp \
     VideoDisplay/VideoRender.cpp \
@@ -70,7 +70,7 @@ SOURCES += \
     Algorithm/Elevation.cpp
 
 HEADERS += \
-    Decoder/Gstreamer/GSTStreamDecoder.h \
+    Decoder/Gstreamer/GStreamDecoder.h \
     Decoder/DecoderInterface.h \
     VideoDisplay/I420Render.h \
     VideoDisplay/VideoRender.h \

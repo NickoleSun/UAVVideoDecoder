@@ -88,10 +88,31 @@ Window {
                 listClickPoint : videoEngine.geoPoints
                 Column {
                     spacing: 5
-                    Button {
-                        text: "UAV"
-                        onClicked: {
-                            map.centerMap();
+                    Row {
+                        spacing: 5
+                        Button {
+                            text: "UAV"
+                            onClicked: {
+                                map.centerMap();
+                            }
+                        }
+                        Button {
+                            text: "TGT"
+                            onClicked: {
+                                map.centerTarget();
+                            }
+                        }
+                        Button {
+                            text: "Delete ruler"
+                            onClicked: {
+                                map.removeLastMeasureLine();
+                            }
+                        }
+                        Button {
+                            text: "Clear rulers"
+                            onClicked: {
+                                map.removeAllMeasureLines();
+                            }
                         }
                     }
                     Row {
@@ -160,7 +181,7 @@ Window {
             spacing: 10
             ComboBox {
                 id: cbxDecoderType
-                model: ["FFMPEG","GSTREAMER"]
+                model: videoEngine.decoderList
             }
             Button {
                 id: btnChangeDecoder
@@ -184,6 +205,7 @@ Window {
 
     Component.onCompleted: {
         videoEngine.setRender(videoRender);
-        videoEngine.setVideo("/home/hainh/Desktop/Video/Log/VT-Video 25-12-2021 11-06-59.ts");
+//        videoEngine.setVideo("/home/hainh/Desktop/Video/Log/VT-Video 25-12-2021 11-06-59.ts");
+        videoEngine.setVideo("/home/hainh/Desktop/MISB/Samples/Locks_to_St.ts");
     }
 }

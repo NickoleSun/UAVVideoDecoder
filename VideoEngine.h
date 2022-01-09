@@ -54,6 +54,7 @@ private:
 class VideoEngine : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QStringList decoderList READ decoderList NOTIFY decoderListChanged)
     Q_PROPERTY(QQmlListProperty<GeoPoint> geoPoints READ geoPoints NOTIFY geoPointsChanged)
 public:
     explicit VideoEngine(QObject *parent = nullptr);
@@ -94,6 +95,17 @@ public:
         m_geoPoints.clear();
         Q_EMIT geoPointsChanged();
     }
+
+    QStringList decoderList()
+    {
+        QStringList res;
+        for(int i =0; i< m_decoderList.size(); i++)
+        {
+            res.append(m_decoderList[i]->decodeType());
+        }
+        return res;
+    }
+
 public Q_SLOTS:
     void renderFrame(unsigned char* frameData, int width, int height);    
     void handleLocationComputed(QPoint point, QGeoCoordinate location);
@@ -102,10 +114,12 @@ Q_SIGNALS:
     void videoInformationChanged(QString information);
     void metadataFound(QVariantMap data);
     void geoPointsChanged();
+    void decoderListChanged();
+
 private:
     DecoderInterface* m_decoder = nullptr;
+    QList<DecoderInterface*> m_decoderList;
     VideoRender* m_render = nullptr;
-    QString m_decoderType = "FFMPEG";
     QList<GeoPoint*> m_geoPoints;
     QSize m_frameSize;
     float m_xRatio;

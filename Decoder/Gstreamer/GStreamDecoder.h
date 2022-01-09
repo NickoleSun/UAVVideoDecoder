@@ -1,5 +1,5 @@
-#ifndef GSTSTREAMDECODER_H
-#define GSTSTREAMDECODER_H
+#ifndef GSTREAMDECODER_H
+#define GSTREAMDECODER_H
 
 #include <QObject>
 #include <QVariant>
@@ -10,12 +10,12 @@
 #include <gst/gstutils.h>
 #include <gst/gstsegment.h>
 #include "../DecoderInterface.h"
-class GSTStreamDecoder : public DecoderInterface
+class GStreamDecoder : public DecoderInterface
 {
     Q_OBJECT
 public:
-    explicit GSTStreamDecoder(DecoderInterface *parent = nullptr);
-    ~GSTStreamDecoder();
+    explicit GStreamDecoder(DecoderInterface *parent = nullptr);
+    ~GStreamDecoder();
 
     void run() override;
     void stop() override;
@@ -40,4 +40,4 @@ private:
     unsigned char m_data[24883200];
 };
 
-#endif // GSTSTREAMDECODER_H
+#endif // GSTREAMDECODER_H

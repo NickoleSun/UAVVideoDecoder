@@ -126,7 +126,7 @@ Rectangle {
                     onPressed: {
                         listView.currentIndex = index;
                     }
-                    onClicked: {
+                    onDoubleClicked: {
                         if(folders.isFolder(index))
                         {
                             if(folders.folder.toString() !== "file:///")

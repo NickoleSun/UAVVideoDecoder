@@ -87,7 +87,6 @@ namespace AppService {
 
         TargetLocalization();
         ~TargetLocalization();
-        void setSensorParams(float sx, float sy);
         void setParams(QString t_folder, int t_resolution) {m_elevationFinder.setParams(t_folder,t_resolution);}
         double getTargetLat(void){ return UavDataState.TargetPosition.Latitude; }
         double getTargetLon(void){ return UavDataState.TargetPosition.Longitude; }

@@ -14,6 +14,20 @@ extern "C" {
 }
 #include "../DecoderInterface.h"
 
+class Klv{
+public:
+    Klv(uint8_t key, uint8_t length, std::vector<uint8_t> value){
+        m_key = key;
+        m_length = length;
+        m_value = value;
+    }
+    ~Klv(){}
+
+public:
+    uint8_t m_key;
+    uint8_t m_length;
+    std::vector<uint8_t> m_value;
+};
 class FFMPEGDecoder : public DecoderInterface
 {
     Q_OBJECT
@@ -29,7 +43,7 @@ public:
     void goToPosition(float percent) override;
 
     bool openSource(QString videoSource);
-    QVariantMap decodeMeta(unsigned char* data, int length);
+    void decodeMeta(unsigned char* data, int length);
 
 Q_SIGNALS:
 

@@ -13,11 +13,15 @@
 #define NUMBERS_H
 
 // Tung sing edit
+#ifndef M_PI
 #define M_PI            3.1415926535897932385f
+#endif
 #define M_2PI			M_PI*2
 #define DEG_TO_RAD      (M_PI / 180.0f)
 #define RAD_TO_DEG      (180.0f / M_PI)
+#ifndef FLT_EPSILON
 #define FLT_EPSILON     1.192092896e-07f
+#endif
 class Numbers
 {
 public:

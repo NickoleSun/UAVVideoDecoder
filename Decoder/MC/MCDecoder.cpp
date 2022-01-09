@@ -8,17 +8,14 @@
 
 MCDecoder::MCDecoder(DecoderInterface *parent) : DecoderInterface(parent)
 {
+    m_type = "MC";
     // initialize MC library
     av_register_all();
     avformat_network_init();
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
     m_mutex = new QMutex;
-    m_pauseCond = new QWaitCondition;
-    m_geolocation.visionViewInit(33,25,1920,1080);
-    m_geolocation.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
-    m_geolocationSingle.visionViewInit(33,25,1920,1080);
-    m_geolocationSingle.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
+    m_pauseCond = new QWaitCondition;    
 }
 MCDecoder::~MCDecoder(){
     stop();
@@ -84,7 +81,9 @@ bool MCDecoder::openSource(QString videoSource)
     printf("fps:    %f\r\n"     ,m_fps);
     printf("pixfmt: %s\r\n"     ,av_get_pix_fmt_name(m_videoStream->codec->pix_fmt));
 #endif
-
+    m_width = m_videoStream->codec->width;
+    m_height = m_videoStream->codec->height;
+    setSensorParams(m_sx,m_sy);
     Q_EMIT videoInformationChanged(information);
 
     return true;
@@ -94,8 +93,6 @@ void MCDecoder::run(){
     std::thread metaReadingThead(&MCDecoder::decodeMeta,this);
     metaReadingThead.detach();
 
-    std::thread computeTargetThead(&MCDecoder::computeGeolocation,this);
-    computeTargetThead.detach();
     // decoding loop
     AVFrame* decframe = av_frame_alloc();
     AVPacket pkt;
@@ -140,18 +137,18 @@ void MCDecoder::run(){
                 if(currentTimeMS > 0)
                 {
                     m_currentTimeMS = currentTimeMS;
-                    //                    printf("timeBase[%f] currentTS[%ld] pkt.pts[%ld] pkt.dts[%ld] pkt.duration[%d]\r\n",
-                    //                           timeBase,currentTS,pkt.pts,pkt.dts,pkt.duration);
                 }
                 int width = decframe->linesize[0];
                 int height = decframe->height;
+                m_width = width;
+                m_height = height;
                 memcpy(m_data,decframe->data[0],static_cast<size_t>(width*height));
                 memcpy(m_data+width*height,decframe->data[1],static_cast<size_t>(width*height/4));
                 memcpy(m_data+width*height*5/4,decframe->data[2],static_cast<size_t>(width*height/4));
 
                 int frameID = decodeFrameID(m_data,200,1);
 #ifdef DEBUG
-                printf("frameID[%d]\r\n",frameID);
+                printf("MCDecode frameID[%d]\r\n",frameID);
 #endif
                 if(frameID < 0)
                 {
@@ -198,6 +195,7 @@ void MCDecoder::setVideo(QString source){
     m_sourceSet = true;
     m_metaSource = source + ".csv";
     m_metaSourceSet = true;
+    m_metaId = -1;
     pause(false);
 }
 
@@ -214,11 +212,7 @@ void MCDecoder::pause(bool pause){
     }
 }
 
-void MCDecoder::setSensorParams(float sx, float sy)
-{
-    m_geolocation.setSensorParams(sx,sy);
-    m_geolocationSingle.setSensorParams(sx,sy);
-}
+
 
 void MCDecoder::goToPosition(float percent){
     m_posSeek = percent;
@@ -241,95 +235,100 @@ void MCDecoder::stop(){
 
 void MCDecoder::decodeMeta()
 {
-    printf("metaSource[%s]\r\n",m_metaSource.toStdString().c_str());
+    printf("Start decodeMeta\r\n");
     std::ifstream fread;
     fread.open(m_metaSource.toStdString().c_str());
-    if (fread.is_open())
+    std::string headerLine;
+
+    // Read header line contains meta data fields.
+    std::getline(fread, headerLine);
+    if(!QString::fromStdString(headerLine).contains(","))
     {
-        std::string line;
+        std::getline(fread, headerLine);
+    }
+    QStringList metaFields = QString::fromStdString(headerLine).split(",");
 
-        // Read header line contains meta data fields.
-        std::getline(fread, line);
-        QStringList metaFields = QString::fromStdString(line).split(",");
-
-        while(!m_stop)
+    while(!m_stop)
+    {
+        m_mutex->lock();
+        if(m_pause)
+            m_pauseCond->wait(m_mutex);
+        m_mutex->unlock();
+        if(m_metaSourceSet)
         {
-            m_mutex->lock();
-            if(m_pause)
-                m_pauseCond->wait(m_mutex);
-            m_mutex->unlock();
-            if(m_metaSourceSet)
+            m_metaSourceSet = false;
+            if(fread.is_open())
             {
-                m_metaSourceSet = false;
-                if(fread.is_open())
-                {
-                    fread.close();
-                    fread.open(m_metaSource.toStdString().c_str());
-                    std::getline(fread, line);
-                    QStringList metaFields = QString::fromStdString(line).split(",");
-                }
+                fread.close();
             }
-            if(this->m_metaId >= this->m_frameId)
+            fread.open(m_metaSource.toStdString().c_str());
+            std::getline(fread, headerLine);
+            if(!QString::fromStdString(headerLine).contains(","))
             {
-                if(m_metaId > m_frameId + 90)
+                std::getline(fread, headerLine);
+            }
+            metaFields = QString::fromStdString(headerLine).split(",");
+            m_lineCount = 2;
+        }
+        if(m_metaId >= m_frameId)
+        {
+            if(m_metaId > m_frameId + 90)
+            {
+                // go to begin of the file
+                fread.seekg(0);
+                std::getline(fread, headerLine);
+                if(!QString::fromStdString(headerLine).contains(","))
                 {
-                    // go to begin of the file
-                    fread.seekg(0);
-                    std::getline(fread, line);
+                    std::getline(fread, headerLine);
+                }
+                m_lineCount = 2;
+            }
+            else
+            {
+                m_metaFound = true;
+                m_waitToReadMetaCond.notify_all();
+                msleep(30);
+                continue;
+            }
+        }
+        std::string dataLine;
+        if (std::getline(fread, dataLine))
+        {
+            m_lineCount ++;
+
+            QStringList metaValues = QString::fromStdString(dataLine).split(",");
+            if (metaFields.size() == metaValues.size())
+            {
+                QVariantMap meta;
+                for (int i = 0; i < metaFields.size(); ++i)
+                {
+                    meta[metaFields[i].replace(" ","")] = metaValues[i].replace(" ","");
+                }
+                float uavASML = meta["UavAMSL"].toFloat();
+                meta["UavAMSL"] = QVariant::fromValue(uavASML+32);
+                m_metaId = meta["ImageId"].toInt();
+#ifdef DEBUG
+                printf("decode m_metaId[%d]\r\n",m_metaId);
+#endif
+                if(m_metaId < m_frameId)
+                {
+                    // continue to find meta
+                    continue;
                 }
                 else
                 {
-                    m_metaFound = true;
-                    m_waitToReadMetaCond.notify_all();
-                    msleep(30);
-                    continue;
+                    updateMeta(meta);
                 }
             }
-            else
-            {
-//            std::unique_lock<std::mutex> lock(m_metaFoundMutex);
-//            m_waitToReadMetaCond.wait(lock, [this]() { return !this->m_metaFound; });
-//            msleep(1);
-            }
-            if (std::getline(fread, line))
-            {
-                QStringList metaValues = QString::fromStdString(line).split(",");
-
-                if (metaFields.size() == metaValues.size())
-                {
-                    for (int i = 0; i < metaFields.size(); ++i)
-                    {
-                        m_meta[metaFields[i].replace(" ","")] = metaValues[i].replace(" ","");
-                    }
-                    m_metaId = m_meta["ImageId"].toInt();
-#ifdef DEBUG
-                    printf("m_metaId[%d]\r\n",m_metaId);
-#endif
-                    if(m_metaId < m_frameId)
-                    {
-                        // continue to find meta
-                        continue;
-                    }
-                    else
-                    {
-                        updateMeta(m_meta);
-                    }
-
-                }
-            }
-            else
-            {
-                printf("EOF\r\n");
-                sleep(1);
-            }
-
         }
-        fread.close();
-    }
-    else
-    {
+        else
+        {
+            printf("EOF\r\n");
+            sleep(1);
+        }
 
     }
+    if(fread.is_open()) fread.close();
     printf("Meta stopped\r\n");
 }
 
@@ -356,107 +355,3 @@ int MCDecoder::decodeFrameID(unsigned char* frameData, int width, int height)
     return res;
 }
 
-void MCDecoder::updateMeta(QVariantMap metaData)
-{
-    float tiltOffset = -7.0f;
-
-    m_geolocation.targetLocationMain(
-                    1920/2, 1080/2,
-                    metaData["Hfov"].toFloat() / RAD_2_DEG,
-                    metaData["UavRoll"].toFloat()/ RAD_2_DEG,
-                    metaData["UavPitch"].toFloat()/ RAD_2_DEG,
-                    metaData["UavYaw"].toFloat()/ RAD_2_DEG,
-                    (metaData["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                    (metaData["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                    (metaData["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
-                    metaData["UavLatitude"].toDouble(),
-                    metaData["UavLongitude"].toDouble(),
-                    metaData["UavAMSL"].toFloat());
-    m_metaProcessed["centerCoordinateComp"] = QVariant::fromValue(
-                QGeoCoordinate( m_geolocation.getTargetLat(),
-                                m_geolocation.getTargetLon()));
-    m_geolocation.targetLocationMain(
-                    metaData["TargetPx"].toInt(), metaData["TargetPy"].toInt(),
-                    metaData["Hfov"].toFloat() / RAD_2_DEG,
-                    metaData["UavRoll"].toFloat()/ RAD_2_DEG,
-                    metaData["UavPitch"].toFloat()/ RAD_2_DEG,
-                    metaData["UavYaw"].toFloat()/ RAD_2_DEG,
-                    (metaData["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                    (metaData["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                    (metaData["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
-                    metaData["UavLatitude"].toDouble(),
-                    metaData["UavLongitude"].toDouble(),
-                    metaData["UavAMSL"].toFloat());
-    m_metaProcessed["targetCoordinateComp"] = QVariant::fromValue(
-                QGeoCoordinate( m_geolocation.getTargetLat(),
-                                m_geolocation.getTargetLon()));
-    m_metaProcessed["coordinate"] = QVariant::fromValue(
-                QGeoCoordinate( metaData["UavLatitude"].toDouble(),
-                                metaData["UavLongitude"].toDouble()));
-    m_metaProcessed["azimuth"] = metaData["Azimuth"];
-    m_metaProcessed["elevation"] = metaData["Elevation"];
-
-    m_metaProcessed["azimuthComp"] = QVariant::fromValue(m_geolocation.getTargetAzimuth());
-    m_metaProcessed["elevationComp"] = QVariant::fromValue(m_geolocation.getTargetElevator());
-
-    m_metaProcessed["yaw"] = metaData["UavYaw"].toDouble();
-    m_metaProcessed["centerCoordinate"] = QVariant::fromValue(
-                QGeoCoordinate( metaData["CenterLat"].toDouble(),
-                                metaData["CenterLon"].toDouble()));
-    m_metaProcessed["targetCoordinate"] = QVariant::fromValue(
-                QGeoCoordinate( metaData["TargetLat"].toDouble(),
-                                metaData["TargetLon"].toDouble()));
-#ifdef DEBUG
-    printf("UAV(%f,%f,%.02f) R(%.02f) P(%.02f) Y(%.02f) T(%f,%f)\r\n",
-            metaData["UavLatitude"].toDouble(),
-            metaData["UavLongitude"].toDouble(),
-            metaData["UavAMSL"].toDouble(),
-            metaData["UavRoll"].toDouble(),
-            metaData["UavPitch"].toDouble(),
-            metaData["UavYaw"].toDouble(),
-            metaData["TargetLat"].toDouble(),
-            metaData["TargetLon"].toDouble());
-    printf("[%d] AL/AC [%.04f]/[%.04f] EL/EC [%.04f]/[%.04f]\r\n",
-            metaData["ImageId"].toInt(),
-            m_metaProcessed["azimuth"].toFloat(),m_geolocation.getTargetAzimuth(),
-            m_metaProcessed["elevation"].toFloat(),m_geolocation.getTargetElevator());
-#endif
-}
-
-void MCDecoder::computeTargetLocation(float xRatio, float yRatio)
-{
-    m_xRatio = xRatio;
-    m_yRatio = yRatio;
-    m_computeTargetSet = true;
-    m_waitComputeTargetCond.notify_all();
-}
-
-void MCDecoder::computeGeolocation()
-{
-    while(!m_stop)
-    {
-        std::unique_lock<std::mutex> lock(m_computeTargetMutex);
-        m_waitComputeTargetCond.wait(lock, [this]() { return this->m_computeTargetSet; });
-        int imageX = static_cast<int>(m_xRatio * m_meta["ImageWidth"].toFloat());
-        int imageY = static_cast<int>(m_yRatio * m_meta["ImageHeight"].toFloat());
-        m_geolocationSingle.targetLocationMain(
-                        imageX,imageY,
-                        m_meta["Hfov"].toFloat() / RAD_2_DEG,
-                        m_meta["UavRoll"].toFloat()/ RAD_2_DEG,
-                        m_meta["UavPitch"].toFloat()/ RAD_2_DEG,
-                        m_meta["UavYaw"].toFloat()/ RAD_2_DEG,
-                        (m_meta["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                        (m_meta["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                        (m_meta["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
-                        m_meta["UavLatitude"].toDouble(),
-                        m_meta["UavLongitude"].toDouble(),
-                        m_meta["UavAMSL"].toFloat());
-        Q_EMIT locationComputed(
-                    QPoint(imageX,imageY),
-                    QGeoCoordinate(
-                                    m_geolocationSingle.getTargetLat(),
-                                    m_geolocationSingle.getTargetLon(),
-                                    m_geolocationSingle.getTargetAlt()));
-        m_computeTargetSet = false;
-    }
-}
