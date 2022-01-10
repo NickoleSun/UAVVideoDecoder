@@ -74,6 +74,8 @@ public:
     Q_INVOKABLE void computeTargetLocation(float xRatio, float yRatio);
     Q_INVOKABLE int getCurrentTime ();
     Q_INVOKABLE int getDuration ();
+    Q_INVOKABLE void setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll);
+    Q_INVOKABLE void setUavOffset(float offsetRoll, float offsetPitch, float offsetYaw);
 
     QQmlListProperty<GeoPoint> geoPoints(){
         return QQmlListProperty<GeoPoint>(this, m_geoPoints);
@@ -122,8 +124,6 @@ private:
     VideoRender* m_render = nullptr;
     QList<GeoPoint*> m_geoPoints;
     QSize m_frameSize;
-    float m_xRatio;
-    float m_yRatio;
 };
 
 #endif // VIDEOENGINE_H

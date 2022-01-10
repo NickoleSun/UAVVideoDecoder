@@ -133,6 +133,7 @@ Map {
                 root.gesture.enabled = false
                 buffMeasureLine = createMeasureline(measureLineStartPos, measureLineEndPos)
             }
+
         }
         onPositionChanged: {
             var coordinate = root.toCoordinate(Qt.point(mouse.x,mouse.y))
@@ -147,6 +148,9 @@ Map {
                 listMeasureLine.push(buffMeasureLine)
             }
             root.gesture.enabled = true
+        }
+        onClicked: {
+            forceActiveFocus();
         }
     }
 

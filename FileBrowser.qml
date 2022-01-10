@@ -123,8 +123,12 @@ Rectangle {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
+                    onClicked: {
+                        forceActiveFocus();
+                    }
+
                     onPressed: {
-                        listView.currentIndex = index;
+                        listView.currentIndex = index;                        
                     }
                     onDoubleClicked: {
                         if(folders.isFolder(index))

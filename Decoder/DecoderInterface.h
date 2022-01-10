@@ -22,24 +22,12 @@ public:
     virtual void setSpeed(float speed){ Q_UNUSED(speed); }
     virtual void goToPosition(float percent) { Q_UNUSED(percent); }
 
-    void setOffset(float panOffset, float tiltOffset, float rollOffset)
-    {   m_panOffset = panOffset;
-        m_tiltOffset = tiltOffset;
-        m_rollOffset = rollOffset;
-        printf("Offset P[%f] T[%f] R[%f]\r\n",
-               m_panOffset,
-               m_tiltOffset,
-               m_rollOffset);
-    }
+    void setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll);
+    void setUavOffset(float offsetRoll, float offsetPitch, float offsetYaw);
     void setSensorParams(float sx, float sy);
     void computeTargetLocation(float xRatio, float yRatio);
     void computeGeolocation();
-    void startService()
-    {
-        start();
-        std::thread computeTargetThead(&DecoderInterface::computeGeolocation,this);
-        computeTargetThead.detach();
-    }
+    void startService();
 
     int getCurrentTime () { return m_currentTimeMS; }
     int getDuration () { return m_durationMS; }
@@ -71,14 +59,21 @@ protected:
     float m_sy = 25;
 
     // Offset
-    float m_panOffset = 0.0f;
-    float m_tiltOffset = 0.0f;
-    float m_rollOffset = 0.0f;
+    float m_gimbalPanOffset = 0.0f;
+    float m_gimbalTiltOffset = 0.0f;
+    float m_gimbalRollOffset = 0.0f;
+
+    float m_uavRollOffset = 0.0f;
+    float m_uavPitchOffset = 0.0f;
+    float m_uavYawOffset = 0.0f;
 
     //Geo-location
     AppService::TargetLocalization  m_geolocation;
     AppService::TargetLocalization  m_geolocationSingle;
     bool                            m_computeTargetSet = false;
+    bool                            m_changeSensorParamSet = false;
+    bool                            m_changeGimbalOffsetSet = false;
+    bool                            m_changeUAVOffsetSet = false;
     float                           m_xRatio = 0.5f;
     float                           m_yRatio = 0.5f;
     std::mutex m_computeTargetMutex;

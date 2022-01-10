@@ -74,6 +74,7 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
+                            forceActiveFocus();
                             videoEngine.computeTargetLocation(mouseX/width,mouseY/height)
                         }
                     }
@@ -144,6 +145,102 @@ Window {
                             stepSize: 1
                             onValueChanged: {
                                 videoEngine.setSensorParams(txtSx.value,txtSy.value);
+                            }
+                        }
+                    }
+                    Label {
+                        text: "Offset Gimbal(P T R) x 10"
+                        color: "white"
+                    }
+                    Row {
+                        spacing: 5
+
+
+                        SpinBox {
+                            id: txtGimbalOffsetPan
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setGimbalOffset(txtGimbalOffsetPan.value/10,
+                                                            txtGimbalOffsetTilt.value/10,
+                                                            txtGimbalOffsetRoll.value/10)
+                            }
+                        }
+                        SpinBox {
+                            id: txtGimbalOffsetTilt
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setGimbalOffset(txtGimbalOffsetPan.value/10,
+                                                            txtGimbalOffsetTilt.value/10,
+                                                            txtGimbalOffsetRoll.value/10)
+                            }
+                        }
+                        SpinBox {
+                            id: txtGimbalOffsetRoll
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setGimbalOffset(txtGimbalOffsetPan.value/10,
+                                                            txtGimbalOffsetTilt.value/10,
+                                                            txtGimbalOffsetRoll.value/10)
+                            }
+                        }
+                    }
+                    Label {
+                        text: "Offset UAV(R P Y) x 10"
+                        color: "white"
+                    }
+                    Row {
+                        spacing: 5
+
+
+                        SpinBox {
+                            id: txtUAVOffsetRoll
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setUavOffset(txtUAVOffsetRoll.value/10,
+                                                        txtUAVOffsetPitch.value/10,
+                                                        txtUAVOffsetYaw.value/10)
+                            }
+                        }
+                        SpinBox {
+                            id: txtUAVOffsetPitch
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setUavOffset(txtUAVOffsetRoll.value/10,
+                                                        txtUAVOffsetPitch.value/10,
+                                                        txtUAVOffsetYaw.value/10)
+                            }
+                        }
+                        SpinBox {
+                            id: txtUAVOffsetYaw
+                            value: 0
+                            stepSize: 1
+                            from: -1800
+                            to: 1800
+                            editable: true
+                            onValueChanged: {
+                                videoEngine.setUavOffset(txtUAVOffsetRoll.value,
+                                                        txtUAVOffsetPitch.value,
+                                                        txtUAVOffsetYaw.value)
                             }
                         }
                     }

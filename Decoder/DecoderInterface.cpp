@@ -8,12 +8,29 @@ DecoderInterface::DecoderInterface(QThread *parent) : QThread(parent)
     m_geolocationSingle.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
 }
 
+void DecoderInterface::setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll)
+{
+    m_gimbalPanOffset = offsetPan;
+    m_gimbalTiltOffset = offsetTilt;
+    m_gimbalRollOffset = offsetRoll;
+    m_changeGimbalOffsetSet = true;
+    m_waitComputeTargetCond.notify_one();
+}
+
+void DecoderInterface::setUavOffset(float offsetRoll, float offsetPitch, float offsetYaw)
+{
+    m_uavRollOffset = offsetRoll;
+    m_uavPitchOffset = offsetPitch;
+    m_uavYawOffset = offsetYaw;
+    m_changeUAVOffsetSet = true;
+    m_waitComputeTargetCond.notify_one();
+}
 void DecoderInterface::setSensorParams(float sx, float sy)
 {
     m_sx = sx;
     m_sy = sy;
-    m_geolocation.visionViewInit(sx,sy,m_width,m_height);
-    m_geolocationSingle.visionViewInit(sx,sy,m_width,m_height);
+    m_changeSensorParamSet = true;
+    m_waitComputeTargetCond.notify_one();
 }
 
 void DecoderInterface::computeTargetLocation(float xRatio, float yRatio)
@@ -21,7 +38,7 @@ void DecoderInterface::computeTargetLocation(float xRatio, float yRatio)
     m_xRatio = xRatio;
     m_yRatio = yRatio;
     m_computeTargetSet = true;
-    m_waitComputeTargetCond.notify_all();
+    m_waitComputeTargetCond.notify_one();
 }
 
 void DecoderInterface::computeGeolocation()
@@ -29,29 +46,66 @@ void DecoderInterface::computeGeolocation()
     while(!m_stop)
     {
         std::unique_lock<std::mutex> lock(m_computeTargetMutex);
-        m_waitComputeTargetCond.wait(lock, [this]() { return this->m_computeTargetSet; });
+        m_waitComputeTargetCond.wait(lock, [this]() {
+            return this->m_computeTargetSet ||
+                    this->m_changeSensorParamSet ||
+                    this->m_changeGimbalOffsetSet ||
+                    this->m_changeUAVOffsetSet; });
+
+        if(m_computeTargetSet)
+        {
+            m_computeTargetSet = false;
+        }
+        if(m_changeSensorParamSet)
+        {
+            m_changeSensorParamSet = false;
+            m_geolocation.visionViewInit(m_sx,m_sy,m_width,m_height);
+            m_geolocationSingle.visionViewInit(m_sx,m_sy,m_width,m_height);
+        }
+        if(m_changeGimbalOffsetSet)
+        {
+            m_changeGimbalOffsetSet = false;
+        }
+
+        if(m_changeUAVOffsetSet)
+        {
+            m_changeUAVOffsetSet = false;
+        }
+
         int imageX = static_cast<int>(m_xRatio * static_cast<float>(m_width));
         int imageY = static_cast<int>(m_yRatio * static_cast<float>(m_height));
-        m_geolocationSingle.targetLocationMain(
-                        imageX,imageY,
-                        m_metaProcessed["Hfov"].toFloat() / RAD_2_DEG,
-                        m_metaProcessed["UavRoll"].toFloat()/ RAD_2_DEG,
-                        m_metaProcessed["UavPitch"].toFloat()/ RAD_2_DEG,
-                        m_metaProcessed["UavYaw"].toFloat()/ RAD_2_DEG,
-                        (m_metaProcessed["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                        (m_metaProcessed["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                        (m_metaProcessed["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
-                        m_metaProcessed["UavLatitude"].toDouble(),
-                        m_metaProcessed["UavLongitude"].toDouble(),
-                        m_metaProcessed["UavAMSL"].toFloat());
-        Q_EMIT locationComputed(
-                    QPoint(imageX,imageY),
-                    QGeoCoordinate(
-                                    m_geolocationSingle.getTargetLat(),
-                                    m_geolocationSingle.getTargetLon(),
-                                    m_geolocationSingle.getTargetAlt()));
-        m_computeTargetSet = false;
+        if(m_metaProcessed.keys().contains("Hfov"))
+        {
+            QVariantMap metaData = m_metaProcessed;
+            m_geolocationSingle.targetLocationMain(
+                            imageX,imageY,
+                            metaData["Hfov"].toFloat() / RAD_2_DEG,
+                            (metaData["UavRoll"].toFloat() + m_uavRollOffset)/ RAD_2_DEG,
+                            (metaData["UavPitch"].toFloat() + m_uavPitchOffset)/ RAD_2_DEG,
+                            (metaData["UavYaw"].toFloat() + m_uavYawOffset)/ RAD_2_DEG,
+                            (metaData["GimbalPan"].toFloat() + m_gimbalPanOffset)/ RAD_2_DEG,
+                            (metaData["GimbalTilt"].toFloat() + m_gimbalTiltOffset)/ RAD_2_DEG,
+                            (metaData["GimbalRoll"].toFloat() + m_gimbalRollOffset)/ RAD_2_DEG,
+                            metaData["UavLatitude"].toDouble(),
+                            metaData["UavLongitude"].toDouble(),
+                            metaData["UavAMSL"].toFloat());
+            Q_EMIT locationComputed(
+                        QPoint(imageX,imageY),
+                        QGeoCoordinate(
+                                        m_geolocationSingle.getTargetLat(),
+                                        m_geolocationSingle.getTargetLon(),
+                                        m_geolocationSingle.getTargetAlt()));
+            updateMeta(metaData);
+            Q_EMIT metaDecoded(m_metaProcessed);
+        }
     }
+}
+
+void DecoderInterface::startService()
+{
+    start();
+    std::thread computeTargetThead(&DecoderInterface::computeGeolocation,this);
+    computeTargetThead.detach();
 }
 
 void DecoderInterface::updateMeta(QVariantMap metaData)
@@ -60,12 +114,12 @@ void DecoderInterface::updateMeta(QVariantMap metaData)
     m_geolocation.targetLocationMain(
                     m_width/2, m_height/2,
                     metaData["Hfov"].toFloat() / RAD_2_DEG,
-                    metaData["UavRoll"].toFloat()/ RAD_2_DEG,
-                    metaData["UavPitch"].toFloat()/ RAD_2_DEG,
-                    metaData["UavYaw"].toFloat()/ RAD_2_DEG,
-                    (metaData["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                    (metaData["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                    (metaData["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
+                    (metaData["UavRoll"].toFloat() + m_uavRollOffset)/ RAD_2_DEG,
+                    (metaData["UavPitch"].toFloat() + m_uavPitchOffset)/ RAD_2_DEG,
+                    (metaData["UavYaw"].toFloat() + m_uavYawOffset)/ RAD_2_DEG,
+                    (metaData["GimbalPan"].toFloat() + m_gimbalPanOffset)/ RAD_2_DEG,
+                    (metaData["GimbalTilt"].toFloat() + m_gimbalTiltOffset)/ RAD_2_DEG,
+                    (metaData["GimbalRoll"].toFloat() + m_gimbalRollOffset)/ RAD_2_DEG,
                     metaData["UavLatitude"].toDouble(),
                     metaData["UavLongitude"].toDouble(),
                     metaData["UavAMSL"].toFloat());
@@ -76,12 +130,12 @@ void DecoderInterface::updateMeta(QVariantMap metaData)
     m_geolocation.targetLocationMain(
                     metaData["TargetPx"].toInt(), metaData["TargetPy"].toInt(),
                     metaData["Hfov"].toFloat() / RAD_2_DEG,
-                    metaData["UavRoll"].toFloat()/ RAD_2_DEG,
-                    metaData["UavPitch"].toFloat()/ RAD_2_DEG,
-                    metaData["UavYaw"].toFloat()/ RAD_2_DEG,
-                    (metaData["GimbalPan"].toFloat() + m_panOffset)/ RAD_2_DEG,
-                    (metaData["GimbalTilt"].toFloat() + m_tiltOffset)/ RAD_2_DEG,
-                    (metaData["GimbalRoll"].toFloat() + m_rollOffset)/ RAD_2_DEG,
+                    (metaData["UavRoll"].toFloat() + m_uavRollOffset)/ RAD_2_DEG,
+                    (metaData["UavPitch"].toFloat() + m_uavPitchOffset)/ RAD_2_DEG,
+                    (metaData["UavYaw"].toFloat() + m_uavYawOffset)/ RAD_2_DEG,
+                    (metaData["GimbalPan"].toFloat() + m_gimbalPanOffset)/ RAD_2_DEG,
+                    (metaData["GimbalTilt"].toFloat() + m_gimbalTiltOffset)/ RAD_2_DEG,
+                    (metaData["GimbalRoll"].toFloat() + m_gimbalRollOffset)/ RAD_2_DEG,
                     metaData["UavLatitude"].toDouble(),
                     metaData["UavLongitude"].toDouble(),
                     metaData["UavAMSL"].toFloat());

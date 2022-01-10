@@ -52,10 +52,7 @@ void VideoEngine::changeDecoder(QString decoderName)
                     this,&VideoEngine::metadataFound);
             connect(m_decoder,&DecoderInterface::locationComputed,
                     this,&VideoEngine::handleLocationComputed);
-            if(decoderName.contains("MC"))
-                m_decoder->setOffset(0,-4.5f,0);
-            else
-                m_decoder->setOffset(0.0f,0.0f,0.0f);
+            m_decoder->setGimbalOffset(0.0f,0.0f,0.0f);
 
             if(currentSource != "") setVideo(currentSource);
             break;
@@ -95,13 +92,10 @@ void VideoEngine::goToPosition(float percent)
 void VideoEngine::setSensorParams(float sx, float sy)
 {
     m_decoder->setSensorParams(sx,sy);
-    m_decoder->computeTargetLocation(m_xRatio,m_yRatio);
 }
 
 void VideoEngine::computeTargetLocation(float xRatio, float yRatio)
 {
-    m_xRatio = xRatio;
-    m_yRatio = yRatio;
     m_decoder->computeTargetLocation(xRatio,yRatio);
 }
 
@@ -115,6 +109,15 @@ int VideoEngine::getDuration ()
     return m_decoder->getDuration();
 }
 
+void VideoEngine::setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll)
+{
+    m_decoder->setGimbalOffset(offsetPan,offsetTilt,offsetRoll);
+}
+
+void VideoEngine::setUavOffset(float offsetRoll, float offsetPitch, float offsetYaw)
+{
+    m_decoder->setUavOffset(offsetRoll,offsetPitch,offsetYaw);
+}
 void VideoEngine::renderFrame(unsigned char* frameData, int width, int height)
 {
     if(m_render != nullptr)
