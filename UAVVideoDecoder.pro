@@ -25,7 +25,7 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
-# GStreamer
+## GStreamer
 unix:!macx: DEPENDPATH += /usr/local/include
 unix:!macx: INCLUDEPATH += /usr/include/gstreamer-1.0
 unix:!macx: INCLUDEPATH += /usr/lib/x86_64-linux-gnu/gstreamer-1.0/include
@@ -39,6 +39,7 @@ unix:!macx: LIBS += -LD:\usr\lib\x86_64-linux-gnu\
     -lgstrtsp-1.0 \
     -lgobject-2.0 \
     -lgstvideo-1.0
+
 ## FFMPEG
 INCLUDEPATH += /usr/include/x86_64-linux-gnu/
 DEPENDPATH += /usr/include/x86_64-linux-gnu/
@@ -50,10 +51,23 @@ LIBS +=  \
     -lswscale \
     -lswresample
 
-#//--------- lib zint
+## Lib zint
 INCLUDEPATH += /usr/local/include
 DEPENDPATH += /usr/local/include
 LIBS += -L/usr/local/lib -lzint -lzbar
+
+## OPENCV
+unix:!macx: LIBS += -L/usr/local/lib/  \
+    -luavv_video_edit \
+    -lopencv_objdetect \
+    -lopencv_shape -lopencv_stitching -lopencv_superres -lopencv_features2d -lopencv_calib3d \
+    -lopencv_videostab \
+    -lopencv_video \
+    -lopencv_core \
+    -lopencv_highgui \
+    -lopencv_imgcodecs \
+    -lopencv_imgproc \
+    -lopencv_videoio
 
 SOURCES += \
         main.cpp \
@@ -67,7 +81,10 @@ SOURCES += \
     Algorithm/AP_Math/Matrix3.cpp \
     Algorithm/AP_Math/Vector3.cpp \
     Algorithm/AP_TargetLocalization/TargetLocalization.cpp \
-    Algorithm/Elevation.cpp
+    Algorithm/Elevation.cpp \
+    ImageProcessing/ImageProcessingInterface.cpp \
+    ImageProcessing/CPU/CPUImageProcessing.cpp \
+    ImageProcessing/CPU/Detect/utils.cpp
 
 HEADERS += \
     Decoder/Gstreamer/GStreamDecoder.h \
@@ -83,4 +100,7 @@ HEADERS += \
     Algorithm/AP_Math/rotations.h \
     Algorithm/AP_Math/Vector3.h \
     Algorithm/AP_TargetLocalization/TargetLocalization.h \
-    Algorithm/Elevation.h
+    Algorithm/Elevation.h \
+    ImageProcessing/ImageProcessingInterface.h \
+    ImageProcessing/CPU/CPUImageProcessing.h \
+    ImageProcessing/CPU/Detect/utils.hpp

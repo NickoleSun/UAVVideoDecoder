@@ -6,6 +6,42 @@ DecoderInterface::DecoderInterface(QThread *parent) : QThread(parent)
     m_geolocation.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
     m_geolocationSingle.visionViewInit(m_sx,m_sy,m_width,m_height);
     m_geolocationSingle.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
+    connect(this,&DecoderInterface::frameDecoded,
+            this,&DecoderInterface::handleFrameDecoded);
+    m_mutexCaptureFrame = new QMutex;
+    m_waitCaptureFrame = new QWaitCondition;
+}
+
+bool DecoderInterface::capture(unsigned char* frameData, int& frameWidth, int& frameHeight)
+{
+    pause(false);
+    m_mutexCaptureFrame->lock();
+    m_newFrameDecoded = false;
+    if(!m_newFrameDecoded) m_waitCaptureFrame->wait(m_mutexCaptureFrame);
+    m_mutexCaptureFrame->unlock();
+    pause(true);
+    if(m_stop) return false;
+    memcpy(frameData,m_frameData,3*m_width*m_height/2);
+    frameWidth = m_width;
+    frameHeight = m_height;
+    return true;
+}
+
+void DecoderInterface::handleFrameDecoded(unsigned char* frameData, int frameWidth, int frameHeight, int timestamp)
+{
+    m_mutexCaptureFrame->lock();
+    m_newFrameDecoded = true;
+    m_mutexCaptureFrame->unlock();
+    m_waitCaptureFrame->wakeAll();
+    m_frameData = frameData;
+    if(m_width != frameWidth || m_height != frameHeight)
+    {
+        m_frameSizeSet = true;
+        m_waitComputeTargetCond.notify_one();
+    }
+    m_width = frameWidth;
+    m_height = frameHeight;
+
 }
 
 void DecoderInterface::setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll)
@@ -50,11 +86,18 @@ void DecoderInterface::computeGeolocation()
             return this->m_computeTargetSet ||
                     this->m_changeSensorParamSet ||
                     this->m_changeGimbalOffsetSet ||
-                    this->m_changeUAVOffsetSet; });
+                    this->m_changeUAVOffsetSet ||
+                    this->m_frameSizeSet; });
 
         if(m_computeTargetSet)
         {
             m_computeTargetSet = false;
+        }
+        if(m_frameSizeSet)
+        {
+            m_frameSizeSet = false;
+            m_geolocation.visionViewInit(m_sx,m_sy,m_width,m_height);
+            m_geolocationSingle.visionViewInit(m_sx,m_sy,m_width,m_height);
         }
         if(m_changeSensorParamSet)
         {

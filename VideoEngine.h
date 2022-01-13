@@ -20,6 +20,7 @@
 #include <QList>
 #include <QQmlListProperty>
 #include "Decoder/DecoderInterface.h"
+#include "ImageProcessing/ImageProcessingInterface.h"
 #include "VideoDisplay/VideoRender.h"
 
 class GeoPoint : public QObject
@@ -51,14 +52,15 @@ private:
     QGeoCoordinate  m_gps;
 };
 
-class VideoEngine : public QObject
+class VideoEngine : public QThread
 {
     Q_OBJECT
     Q_PROPERTY(QStringList decoderList READ decoderList NOTIFY decoderListChanged)
     Q_PROPERTY(QQmlListProperty<GeoPoint> geoPoints READ geoPoints NOTIFY geoPointsChanged)
+    Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
 public:
-    explicit VideoEngine(QObject *parent = nullptr);
-    ~VideoEngine();
+    explicit VideoEngine(QThread *parent = nullptr);
+    ~VideoEngine() override;
     static void expose(){
         qmlRegisterType<GeoPoint>();
         qmlRegisterType<VideoRender>("viettel.dev", 1, 0, "VideoRender");
@@ -107,20 +109,35 @@ public:
         }
         return res;
     }
-
+    bool playing() { return !m_pause; }
+    void run() override;
+    void stop();
 public Q_SLOTS:
-    void renderFrame(unsigned char* frameData, int width, int height);    
+    void renderFrame(unsigned char* frameData, int width, int height);
     void handleLocationComputed(QPoint point, QGeoCoordinate location);
 
 Q_SIGNALS:
+    void playingChanged();
+    void frameProcessed(unsigned char* frameData, int width, int height);
     void videoInformationChanged(QString information);
     void metadataFound(QVariantMap data);
     void geoPointsChanged();
     void decoderListChanged();
 
 private:
+    bool m_stop = false;
+    bool m_pause = false;
+    bool m_pauseSet = false;
     DecoderInterface* m_decoder = nullptr;
     QList<DecoderInterface*> m_decoderList;
+
+    ImageProcessingInterface* m_processor = nullptr;
+    float m_xRatio;
+    float m_yRatio;
+    bool m_clickSet = false;
+    QMutex* m_mutexClick = nullptr;
+    QWaitCondition* m_waitClick = nullptr;
+
     VideoRender* m_render = nullptr;
     QList<GeoPoint*> m_geoPoints;
     QSize m_frameSize;

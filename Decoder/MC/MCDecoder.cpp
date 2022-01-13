@@ -81,8 +81,6 @@ bool MCDecoder::openSource(QString videoSource)
     printf("fps:    %f\r\n"     ,m_fps);
     printf("pixfmt: %s\r\n"     ,av_get_pix_fmt_name(m_videoStream->codec->pix_fmt));
 #endif
-    m_width = m_videoStream->codec->width;
-    m_height = m_videoStream->codec->height;
     setSensorParams(m_sx,m_sy);
     Q_EMIT videoInformationChanged(information);
 
@@ -140,8 +138,6 @@ void MCDecoder::run(){
                 }
                 int width = decframe->linesize[0];
                 int height = decframe->height;
-                m_width = width;
-                m_height = height;
                 memcpy(m_data,decframe->data[0],static_cast<size_t>(width*height));
                 memcpy(m_data+width*height,decframe->data[1],static_cast<size_t>(width*height/4));
                 memcpy(m_data+width*height*5/4,decframe->data[2],static_cast<size_t>(width*height/4));
@@ -229,6 +225,10 @@ void MCDecoder::stop(){
     m_waitToReadMetaCond.notify_all();
     m_stop = true;
     pause(false);
+    m_mutexCaptureFrame->lock();
+    m_newFrameDecoded = true;
+    m_mutexCaptureFrame->unlock();
+    m_waitCaptureFrame->wakeAll();
 }
 
 

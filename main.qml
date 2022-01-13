@@ -302,7 +302,7 @@ Window {
 
     Component.onCompleted: {
         videoEngine.setRender(videoRender);
-//        videoEngine.setVideo("/home/hainh/Desktop/Video/Log/VT-Video 25-12-2021 11-06-59.ts");
-        videoEngine.setVideo("/home/hainh/Desktop/MISB/Samples/Locks_to_St.ts");
+        videoEngine.setVideo("/home/hainh/Desktop/Video/Log/VT-Video 25-12-2021 11-06-59.ts");
+//        videoEngine.setVideo("/home/hainh/Desktop/MISB/Samples/Locks_to_St.ts");
     }
 }

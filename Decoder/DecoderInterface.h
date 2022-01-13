@@ -22,6 +22,7 @@ public:
     virtual void setSpeed(float speed){ Q_UNUSED(speed); }
     virtual void goToPosition(float percent) { Q_UNUSED(percent); }
 
+    bool capture(unsigned char* frameData, int& frameWidth, int& frameHeight);
     void setGimbalOffset(float offsetPan, float offsetTilt, float offsetRoll);
     void setUavOffset(float offsetRoll, float offsetPitch, float offsetYaw);
     void setSensorParams(float sx, float sy);
@@ -35,13 +36,14 @@ public:
     QString source() { return m_source; }
     void updateMeta(QVariantMap metaData);
 
-public Q_SLOTS:
-
 Q_SIGNALS:
     void frameDecoded(unsigned char* frameData, int frameWidth, int frameHeight, int timestamp);
     void metaDecoded(QVariantMap data);
     void videoInformationChanged(QString information);
     void locationComputed(QPoint point, QGeoCoordinate location);
+
+public Q_SLOTS:
+    void handleFrameDecoded(unsigned char* frameData, int frameWidth, int frameHeight, int timestamp);
 
 protected:
     QString m_type = "";
@@ -51,6 +53,10 @@ protected:
     float m_fps = 30;
     int m_durationMS = 0;
     int m_currentTimeMS = 0;
+    QMutex* m_mutexCaptureFrame;
+    QWaitCondition* m_waitCaptureFrame;
+    bool m_newFrameDecoded = false;
+    unsigned char* m_frameData;
 
     QVariantMap m_metaProcessed;
     int m_width = 1920;
@@ -74,6 +80,7 @@ protected:
     bool                            m_changeSensorParamSet = false;
     bool                            m_changeGimbalOffsetSet = false;
     bool                            m_changeUAVOffsetSet = false;
+    bool                            m_frameSizeSet = false;
     float                           m_xRatio = 0.5f;
     float                           m_yRatio = 0.5f;
     std::mutex m_computeTargetMutex;

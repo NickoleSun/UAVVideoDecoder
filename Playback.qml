@@ -24,13 +24,11 @@ Rectangle {
         y: 11
         width: 74
         height: 40
-        text: pause === false?qsTr("Pause"):qsTr("Continue")
+        text: videoEngine.playing?qsTr("Pause"):qsTr("Continue")
         anchors.leftMargin: 6
         anchors.verticalCenter: parent.verticalCenter
-        property bool pause: false
         onClicked: {
-            pause = !pause;
-            videoEngine.pause(pause);
+            videoEngine.pause(videoEngine.playing);
         }
     }
 
