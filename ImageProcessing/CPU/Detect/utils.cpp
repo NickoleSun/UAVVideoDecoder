@@ -42,7 +42,7 @@ std::vector<cv::Rect> GSauvola::detectObject(cv::Mat &inputFrame, cv::Point clic
 
     if(grayPatch.channels() == 3)
     {
-        cv::cvtColor(grayPatch, grayPatch, CV_BGR2GRAY);
+        cv::cvtColor(grayPatch, grayPatch, cv::COLOR_BGR2GRAY);
     }
 
 //  Check conditions of search region if region size is not constant

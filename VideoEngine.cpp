@@ -1,13 +1,18 @@
 #include "VideoEngine.h"
 #include "Decoder/Gstreamer/GStreamDecoder.h"
 #include "Decoder/FFMpeg/FFMPEGDecoder.h"
-#include "Decoder/MC/MCDecoder.h"
+#ifdef SUPPORT_MC_DECODER
+    #include "Decoder/MC/MCDecoder.h"
+#endif
 #include "ImageProcessing/CPU/CPUImageProcessing.h"
 #include "ImageProcessing/CPU/Detect/utils.hpp"
+#include "ImageProcessing/CPU/Tracker/mosse/tracker.h"
 #define INIT_SIZE    64
 VideoEngine::VideoEngine(QThread *parent) : QThread(parent)
 {
+#ifdef SUPPORT_MC_DECODER
     m_decoderList.append(new MCDecoder);
+#endif
     m_decoderList.append(new FFMPEGDecoder);
     m_decoderList.append(new GStreamDecoder);
     Q_EMIT decoderListChanged();
@@ -161,9 +166,13 @@ void VideoEngine::handleLocationComputed(QPoint point, QGeoCoordinate location)
 void VideoEngine::run()
 {
     unsigned char* frameData = new unsigned char[33177600];
+    unsigned char* frameDataShow = new unsigned char[33177600];
     int width;
     int height;
     GSauvola *binor = new GSauvola();
+    Tracker* tracker = new Tracker();
+    int trackSize = 200;
+    cv::Mat frameRGB, frameShow, frameGray, frameI420;
     while(!m_stop)
     {
         if(m_pauseSet)
@@ -174,7 +183,21 @@ void VideoEngine::run()
         if(!m_pause)
         {
             m_decoder->capture(frameData,width,height);
-            Q_EMIT frameProcessed(frameData,width,height);
+
+            if(tracker->isInitialized())
+            {
+                frameGray = cv::Mat(height,width,CV_8UC1,frameData);
+                tracker->performTrack(frameGray);
+                frameI420 = cv::Mat (height*3/2,width,CV_8UC1,frameData);
+                cv::cvtColor(frameI420,frameRGB,cv::COLOR_YUV2RGB_I420);
+                cv::rectangle(frameRGB,tracker->getPosition(),cv::Scalar(0,255,0),2,cv::LINE_AA);
+                cv::cvtColor(frameRGB,frameShow,cv::COLOR_RGB2YUV_I420);
+                memcpy(frameDataShow,frameShow.data,width*height*3/2);
+                Q_EMIT frameProcessed(frameDataShow,width,height);
+            }
+            else {
+                Q_EMIT frameProcessed(frameData,width,height);
+            }
             if(m_clickSet && !m_pause) pause(true);
         }
         else
@@ -188,21 +211,28 @@ void VideoEngine::run()
                 m_clickSet = false;
                 int clickPointX = static_cast<int>((float)width * m_xRatio);
                 int clickPointY = static_cast<int>((float)height * m_yRatio);
-                cv::Point clickPoint(clickPointX,clickPointY);
-                cv::Mat frameI420(height*3/2,width,CV_8UC1,frameData);
-                cv::Mat frameRGB, frameShow;
-                cv::cvtColor(frameI420,frameRGB,cv::COLOR_YUV2RGB_I420);
-                std::vector<cv::Rect> finalRect =
-                        binor->detectObject(frameRGB, clickPoint, cv::Size(INIT_SIZE, INIT_SIZE));
-                cv::circle(frameRGB, clickPoint, 2, cv::Scalar(255, 0, 0));
-                for(size_t i = 0; i < finalRect.size(); i++)
-                {
-                    cv::rectangle(frameRGB, finalRect[i], cv::Scalar(0, 0, 255));
-                    cv::putText(frameRGB, std::to_string(i), finalRect[i].br(), cv::FONT_HERSHEY_COMPLEX, 1.f, cv::Scalar(0, 0, 255));
-                }
-                cv::cvtColor(frameRGB,frameShow,cv::COLOR_RGB2YUV_I420);
-                Q_EMIT frameProcessed(frameShow.data,width,height);
+                if(tracker->isInitialized()) tracker->resetTrack();
+                frameGray = cv::Mat(height,width,CV_8UC1,frameData);
+                tracker->initTrack(frameGray,
+                                   cv::Rect(clickPointX-trackSize/2,
+                                            clickPointY-trackSize/2,
+                                            trackSize,trackSize));
+//                cv::Point clickPoint(clickPointX,clickPointY);
+//                cv::Mat frameI420(height*3/2,width,CV_8UC1,frameData);
+//                cv::Mat frameRGB, frameShow;
+//                cv::cvtColor(frameI420,frameRGB,cv::COLOR_YUV2RGB_I420);
+//                std::vector<cv::Rect> finalRect =
+//                        binor->detectObject(frameRGB, clickPoint, cv::Size(INIT_SIZE, INIT_SIZE));
+//                cv::circle(frameRGB, clickPoint, 2, cv::Scalar(255, 0, 0));
+//                for(size_t i = 0; i < finalRect.size(); i++)
+//                {
+//                    cv::rectangle(frameRGB, finalRect[i], cv::Scalar(0, 0, 255));
+//                    cv::putText(frameRGB, std::to_string(i), finalRect[i].br(), cv::FONT_HERSHEY_COMPLEX, 1.f, cv::Scalar(0, 0, 255));
+//                }
+//                cv::cvtColor(frameRGB,frameShow,cv::COLOR_RGB2YUV_I420);
+//                Q_EMIT frameProcessed(frameShow.data,width,height);
             }
+            pause(false);
         }
     }
     printf("VideoEngine stopped\r\n");

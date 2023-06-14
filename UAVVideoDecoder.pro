@@ -51,14 +51,21 @@ LIBS +=  \
     -lswscale \
     -lswresample
 
-## Lib zint
-INCLUDEPATH += /usr/local/include
-DEPENDPATH += /usr/local/include
-LIBS += -L/usr/local/lib -lzint -lzbar
+support_mc_decoder {
+    DEFINES += SUPPORT_MC_DECODER
 
+    ## Lib zint
+    INCLUDEPATH += /usr/local/include
+    DEPENDPATH += /usr/local/include
+    LIBS += -L/usr/local/lib -lzint -lzbar
+
+    SOURCES +=  Decoder/MC/MCDecoder.cpp
+    HEADERS +=  Decoder/MC/MCDecoder.h
+}
 ## OPENCV
+INCLUDEPATH += /usr/local/include/opencv4
+DEPENDPATH += /usr/local/include/opencv4
 unix:!macx: LIBS += -L/usr/local/lib/  \
-    -luavv_video_edit \
     -lopencv_objdetect \
     -lopencv_shape -lopencv_stitching -lopencv_superres -lopencv_features2d -lopencv_calib3d \
     -lopencv_videostab \
@@ -77,14 +84,14 @@ SOURCES += \
     VideoDisplay/VideoRender.cpp \
     VideoEngine.cpp \
     Decoder/FFMpeg/FFMPEGDecoder.cpp \
-    Decoder/MC/MCDecoder.cpp \
     Algorithm/AP_Math/Matrix3.cpp \
     Algorithm/AP_Math/Vector3.cpp \
     Algorithm/AP_TargetLocalization/TargetLocalization.cpp \
     Algorithm/Elevation.cpp \
     ImageProcessing/ImageProcessingInterface.cpp \
     ImageProcessing/CPU/CPUImageProcessing.cpp \
-    ImageProcessing/CPU/Detect/utils.cpp
+    ImageProcessing/CPU/Detect/utils.cpp \
+    ImageProcessing/CPU/Tracker/mosse/tracker.cpp
 
 HEADERS += \
     Decoder/Gstreamer/GStreamDecoder.h \
@@ -93,7 +100,6 @@ HEADERS += \
     VideoDisplay/VideoRender.h \
     VideoEngine.h \
     Decoder/FFMpeg/FFMPEGDecoder.h \
-    Decoder/MC/MCDecoder.h \
     Algorithm/AP_Math/AP_Math.h \
     Algorithm/AP_Math/Matrix3.h \
     Algorithm/AP_Math/Numbers.h \
@@ -103,4 +109,5 @@ HEADERS += \
     Algorithm/Elevation.h \
     ImageProcessing/ImageProcessingInterface.h \
     ImageProcessing/CPU/CPUImageProcessing.h \
-    ImageProcessing/CPU/Detect/utils.hpp
+    ImageProcessing/CPU/Detect/utils.hpp \
+    ImageProcessing/CPU/Tracker/mosse/tracker.h

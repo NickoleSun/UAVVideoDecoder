@@ -18,14 +18,14 @@ Map {
     ]
     Plugin {
         id: mapPlugin
-        name:"esri"
-        PluginParameter{name:"esri.mapping.cache.disk.cost_strategy";value:"unitary";}  //use number of tile
-        PluginParameter{name:"esri.mapping.cache.disk.size";value:"1000000";}           //use maximumm 1000000 tile
+        name:"osm"
+//        PluginParameter{name:"esri.mapping.cache.disk.cost_strategy";value:"unitary";}  //use number of tile
+//        PluginParameter{name:"esri.mapping.cache.disk.size";value:"1000000";}           //use maximumm 1000000 tile
     }
     zoomLevel: maximumZoomLevel
     plugin: mapPlugin
     activeMapType: supportedMapTypes[1]
-    color: "black"
+//    color: "black"
     copyrightsVisible: false
     onBearingChanged: {
         root.bearing = 0;
