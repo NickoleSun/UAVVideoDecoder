@@ -94,6 +94,29 @@ void FFMPEGDecoder::run(){
     // decoding loop
     AVFrame* decframe = av_frame_alloc();
     AVPacket pkt;
+    printf("Platform Heading Angle;"
+           "Platform Pitch Angle;"
+           "Platform Roll Angle;"
+           "Sensor Latitude;"
+           "Sensor Longitude;"
+           "Sensor Altitude;"
+           "Sensor HFOV;"
+           "Sensor VFOV;"
+           "Sensor Relative Azimuth;"
+           "Sensor Relative Elevation;"
+           "Sensor Relative Roll;"
+           "SlantRanged;"
+           "Frame center Latitude;"
+           "Frame center Longitude;"
+           "Frame center Elevation;"
+           "Corner Latitude Point1;"
+           "Corner Longitude Point1;"
+           "Corner Latitude Point2;"
+           "Corner Longitude Point2;"
+           "Corner Latitude Point3;"
+           "Corner Longitude Point3;"
+           "Corner Latitude Point4;"
+           "Corner Longitude Point4\r\n");
     while (!m_stop){
         m_mutex->lock();
         if(m_pause)

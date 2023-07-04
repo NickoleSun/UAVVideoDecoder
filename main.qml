@@ -302,7 +302,7 @@ Window {
 
     Component.onCompleted: {
         videoEngine.setRender(videoRender);
-        videoEngine.setVideo("/Data/MISB/Truck.ts");
+        videoEngine.setVideo("/Data/MISB/CheyenneVAhospital.mpeg4");
 //        videoEngine.setVideo("/home/hainh/Desktop/MISB/Samples/Locks_to_St.ts");
     }
 }

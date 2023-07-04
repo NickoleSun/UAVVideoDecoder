@@ -171,7 +171,7 @@ void VideoEngine::run()
     int height;
     GSauvola *binor = new GSauvola();
     Tracker* tracker = new Tracker();
-    int trackSize = 200;
+    int trackSize = 100;
     cv::Mat frameRGB, frameShow, frameGray, frameI420;
     while(!m_stop)
     {

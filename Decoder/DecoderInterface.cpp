@@ -1,7 +1,8 @@
 #include "DecoderInterface.h"
-
+#include <locale.h>
 DecoderInterface::DecoderInterface(QThread *parent) : QThread(parent)
 {
+    setlocale(LC_NUMERIC, "French_Canada.1252");
     m_geolocation.visionViewInit(m_sx,m_sy,m_width,m_height);
     m_geolocation.setParams("/home/hainh/uavMap/elevation/ElevationData-H1",60);
     m_geolocationSingle.visionViewInit(m_sx,m_sy,m_width,m_height);
@@ -153,6 +154,35 @@ void DecoderInterface::startService()
 
 void DecoderInterface::updateMeta(QVariantMap metaData)
 {
+    char data[2048];
+    sprintf(data,
+            "%.2f;%.2f;%.2f;"
+            "%.6f;%.6f;%.2f;"
+            "%.2f;%.2f;"
+            "%.2f;%.2f;%.2f;"
+            "%.2f;"
+            "%.6f;%.6f;%.2f;"
+            "%.6f;%.6f;"
+            "%.6f;%.6f;"
+            "%.6f;%.6f;"
+            "%.6f;%.6f\r\n",
+            metaData["UavYaw"].toFloat(), metaData["UavPitch"].toFloat(), metaData["UavRoll"].toFloat(),
+            metaData["UavLatitude"].toFloat(), metaData["UavLongitude"].toFloat(), metaData["UavAMSL"].toFloat(),
+            metaData["Hfov"].toFloat(), metaData["Vfov"].toFloat(),
+            metaData["GimbalPan"].toFloat(), metaData["GimbalTilt"].toFloat(), metaData["GimbalRoll"].toFloat(),
+            metaData["TargetSLR"].toFloat(),
+            metaData["CenterLat"].toFloat(), metaData["CenterLon"].toFloat(),
+            metaData["CenterAMSL"].toFloat(),
+            metaData["Corner01Lat"].toFloat(),
+            metaData["Corner01Lon"].toFloat(),
+            metaData["Corner02Lat"].toFloat(),
+            metaData["Corner02Lon"].toFloat(),
+            metaData["Corner03Lat"].toFloat(),
+            metaData["Corner03Lon"].toFloat(),
+            metaData["Corner04Lat"].toFloat(),
+            metaData["Corner04Lon"].toFloat()
+            );
+    printf("%s",QString(data).replace(',','.').toStdString().c_str());
     m_metaProcessed = metaData;
     m_geolocation.targetLocationMain(
                     m_width/2, m_height/2,
